@@ -2115,6 +2115,103 @@ def test_parse_chat_messages_include_thinking_chunk(mistral_model_config):
     assert conversation_with_thinking == expected_conversation
 
 
+def test_parse_chat_messages_reasoning_content_fallback(mistral_model_config):
+    """Test that reasoning_content in input messages is correctly mapped to
+    both reasoning and reasoning_content in the parsed conversation."""
+    messages = [
+        {"role": "user", "content": "Hello"},
+        {
+            "role": "assistant",
+            "reasoning_content": "Let me think about this",
+            "content": "Hi there!",
+        },
+    ]
+
+    conversation, _, _ = parse_chat_messages(
+        messages,
+        mistral_model_config,
+        content_format="string",
+    )
+
+    assert conversation == [
+        {"role": "user", "content": "Hello"},
+        {
+            "role": "assistant",
+            "content": "Hi there!",
+            "reasoning": "Let me think about this",
+            "reasoning_content": "Let me think about this",
+        },
+    ]
+
+
+def test_parse_chat_messages_reasoning_field_priority(mistral_model_config):
+    """Test that 'reasoning' field takes priority over 'reasoning_content'
+    when both are present."""
+    messages = [
+        {"role": "user", "content": "Hello"},
+        {
+            "role": "assistant",
+            "reasoning": "Primary reasoning",
+            "reasoning_content": "Fallback reasoning",
+            "content": "Hi there!",
+        },
+    ]
+
+    conversation, _, _ = parse_chat_messages(
+        messages,
+        mistral_model_config,
+        content_format="string",
+    )
+
+    assert conversation == [
+        {"role": "user", "content": "Hello"},
+        {
+            "role": "assistant",
+            "content": "Hi there!",
+            "reasoning": "Primary reasoning",
+            "reasoning_content": "Primary reasoning",
+        },
+    ]
+
+
+def test_parse_chat_messages_reasoning_content_with_tool_calls(
+    mistral_model_config,
+):
+    """Test that reasoning_content works correctly with tool_calls."""
+    messages = [
+        {"role": "user", "content": "Read the file"},
+        {
+            "role": "assistant",
+            "reasoning_content": "I need to read the file first",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "call_abc123",
+                    "type": "function",
+                    "function": {
+                        "name": "read_file",
+                        "arguments": '{"path": "test.txt"}',
+                    },
+                }
+            ],
+        },
+    ]
+
+    conversation, _, _ = parse_chat_messages(
+        messages,
+        mistral_model_config,
+        content_format="string",
+    )
+
+    assert len(conversation) == 2
+    assistant_msg = conversation[1]
+    assert assistant_msg["role"] == "assistant"
+    assert assistant_msg["reasoning"] == "I need to read the file first"
+    assert assistant_msg["reasoning_content"] == "I need to read the file first"
+    assert "tool_calls" in assistant_msg
+    assert assistant_msg["tool_calls"][0]["function"]["name"] == "read_file"
+
+
 def test_parse_chat_messages_single_empty_audio_with_uuid(
     qwen2_audio_model_config,
 ):
