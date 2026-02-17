@@ -294,6 +294,10 @@ class CustomChatCompletionMessageParam(TypedDict, total=False):
     reasoning: str | None
     """The reasoning content for interleaved thinking."""
 
+    reasoning_content: str | None
+    """Deprecated alias for ``reasoning``. Kept for backward compatibility
+    with providers that return this field name (e.g. DeepSeek)."""
+
     tools: list[ChatCompletionFunctionToolParam] | None
     """The tools for developer role."""
 
@@ -1450,7 +1454,7 @@ def _parse_chat_message_content(
 ) -> list[ConversationMessage]:
     role = message["role"]
     content = message.get("content")
-    reasoning = message.get("reasoning")
+    reasoning = message.get("reasoning") or message.get("reasoning_content")
 
     if content is None:
         content = []

@@ -2054,6 +2054,64 @@ def test_parse_chat_messages_multiple_images_interleave_with_placeholders(
         )
 
 
+@pytest.mark.parametrize(
+    "field_name",
+    ["reasoning", "reasoning_content"],
+    ids=["reasoning", "reasoning_content"],
+)
+def test_parse_chat_messages_with_reasoning_field(
+    mistral_model_config,
+    field_name: str,
+):
+    """Test that the reasoning/reasoning_content field in assistant messages
+    is preserved through message parsing and available in the conversation
+    passed to the chat template."""
+    reasoning_text = "I need to read src.txt first"
+    messages = [
+        {"role": "user", "content": "Check the file"},
+        {
+            "role": "assistant",
+            field_name: reasoning_text,
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "call_abc123",
+                    "type": "function",
+                    "function": {
+                        "name": "read",
+                        "arguments": '{"path": "src.txt"}',
+                    },
+                }
+            ],
+        },
+        {
+            "role": "tool",
+            "tool_call_id": "call_abc123",
+            "name": "read",
+            "content": "file contents here",
+        },
+    ]
+
+    conversation, _, _ = parse_chat_messages(
+        messages,
+        mistral_model_config,
+        content_format="string",
+    )
+
+    assistant_msgs = [m for m in conversation if m["role"] == "assistant"]
+    assert len(assistant_msgs) == 1
+
+    assistant_msg = assistant_msgs[0]
+    assert "reasoning" in assistant_msg, (
+        f"reasoning field missing from conversation message when input uses "
+        f"'{field_name}'. Keys present: {list(assistant_msg.keys())}"
+    )
+    assert assistant_msg["reasoning"] == reasoning_text
+    assert "reasoning_content" in assistant_msg
+    assert assistant_msg["reasoning_content"] == reasoning_text
+    assert "tool_calls" in assistant_msg
+
+
 def test_parse_chat_messages_include_thinking_chunk(mistral_model_config):
     messages = [
         {
